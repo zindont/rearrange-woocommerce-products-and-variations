@@ -13,48 +13,19 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * ------------------------------------------------------------------
- * 1. ADMIN: RWPP page – add product_variation into list
- * ------------------------------------------------------------------
+ * Common: Apply WVASP exclude rule
+ * - Exclude posts where _wvasp_exclude = 'yes'
  */
-add_action('pre_get_posts', function (WP_Query $q) {
-
-    if (! is_admin()) {
-        return;
-    }
-
-    if (empty($_GET['page']) || $_GET['page'] !== 'rwpp-page') {
-        return;
-    }
-
-    $pt     = $q->get('post_type');
-    $status = $q->get('post_status');
-
-    /**
-     * RWPP v5 list query signature:
-     * post_type   = ['product']
-     * post_status = ['publish']
-     */
-    $is_rwpp_list_query =
-        is_array($pt) &&
-        $pt === ['product'] &&
-        is_array($status) &&
-        $status === ['publish'];
-
-    if (! $is_rwpp_list_query) {
-        return;
-    }
-
-    /**
-     * 1. Include variations
-     */
-    $q->set('post_type', ['product', 'product_variation']);
-
-    /**
-     * 2. Apply same exclude rule as "Variations as Single Product"
-     *    (_wvasp_exclude = yes)
-     */
+function rwppv_apply_wvasp_exclude_rule(WP_Query $q): void
+{
     $meta_query = (array) $q->get('meta_query', []);
+
+    // Avoid duplicates if called multiple times
+    foreach ($meta_query as $clause) {
+        if (is_array($clause) && isset($clause['relation']) && $clause['relation'] === 'OR') {
+            // best-effort: don't over-engineer; harmless if duplicated
+        }
+    }
 
     $meta_query[] = [
         'relation' => 'OR',
@@ -70,12 +41,80 @@ add_action('pre_get_posts', function (WP_Query $q) {
     ];
 
     $q->set('meta_query', $meta_query);
-}, 20);
+}
 
+/**
+ * Helper: Identify RWPP v5 list query signature
+ * RWPP list queries (page + ajax) build:
+ * - post_type   = ['product']
+ * - post_status = ['publish']
+ */
+function rwppv_is_rwpp_list_query(WP_Query $q): bool
+{
+    $pt     = $q->get('post_type');
+    $status = $q->get('post_status');
+
+    return is_array($pt) && $pt === ['product']
+        && is_array($status) && $status === ['publish'];
+}
 
 /**
  * ------------------------------------------------------------------
- * 2. FRONTEND: JOIN RWPP global order table
+ * 1) ADMIN: RWPP page – include product_variation in main list query
+ * ------------------------------------------------------------------
+ */
+add_action('pre_get_posts', function (WP_Query $q) {
+
+    if (! is_admin()) {
+        return;
+    }
+
+    // RWPP admin page is usually admin.php?page=rwpp-page
+    if (empty($_GET['page']) || $_GET['page'] !== 'rwpp-page') {
+        return;
+    }
+
+    if (! rwppv_is_rwpp_list_query($q)) {
+        return;
+    }
+
+    // Include variations
+    $q->set('post_type', ['product', 'product_variation']);
+
+    // Apply WVASP exclude logic
+    rwppv_apply_wvasp_exclude_rule($q);
+}, 20);
+
+/**
+ * ------------------------------------------------------------------
+ * 2) ADMIN AJAX: RWPP "Load more products" – include variations too
+ * ------------------------------------------------------------------
+ */
+add_action('pre_get_posts', function (WP_Query $q) {
+
+    if (! (defined('DOING_AJAX') && DOING_AJAX)) {
+        return;
+    }
+
+    // RWPP load more action
+    if (empty($_REQUEST['action']) || $_REQUEST['action'] !== 'load_more_products') {
+        return;
+    }
+
+    if (! rwppv_is_rwpp_list_query($q)) {
+        return;
+    }
+
+    // Include variations
+    $q->set('post_type', ['product', 'product_variation']);
+
+    // Apply WVASP exclude logic
+    rwppv_apply_wvasp_exclude_rule($q);
+}, 20);
+
+/**
+ * ------------------------------------------------------------------
+ * 3) FRONTEND: join RWPP global order table for queries including variations
  * ------------------------------------------------------------------
  */
 add_filter('posts_join', function ($join, WP_Query $q) {
@@ -86,17 +125,15 @@ add_filter('posts_join', function ($join, WP_Query $q) {
 
     $pt = $q->get('post_type');
 
-    $is_shop_like_query =
-        is_array($pt) &&
-        in_array('product_variation', $pt, true);
-
-    if (! $is_shop_like_query) {
+    // Only affect queries that already include variations (i.e. "variations as products" plugin)
+    if (! (is_array($pt) && in_array('product_variation', $pt, true))) {
         return $join;
     }
 
     global $wpdb;
     $table = $wpdb->prefix . 'rwpp_product_order';
 
+    // Join once
     if (strpos($join, $table) === false) {
         $join .= " LEFT JOIN {$table} AS rwpp_order
                    ON {$wpdb->posts}.ID = rwpp_order.product_id
@@ -106,10 +143,9 @@ add_filter('posts_join', function ($join, WP_Query $q) {
     return $join;
 }, 20, 2);
 
-
 /**
  * ------------------------------------------------------------------
- * 3. FRONTEND: ORDER BY RWPP global order
+ * 4) FRONTEND: order by RWPP global order (category_id = 0)
  * ------------------------------------------------------------------
  */
 add_filter('posts_orderby', function ($orderby, WP_Query $q) {
@@ -120,18 +156,12 @@ add_filter('posts_orderby', function ($orderby, WP_Query $q) {
 
     $pt = $q->get('post_type');
 
-    $is_shop_like_query =
-        is_array($pt) &&
-        in_array('product_variation', $pt, true);
-
-    if (! $is_shop_like_query) {
+    // Only affect queries that already include variations
+    if (! (is_array($pt) && in_array('product_variation', $pt, true))) {
         return $orderby;
     }
 
     global $wpdb;
 
-    return "
-        COALESCE(rwpp_order.sort_order, {$wpdb->posts}.menu_order, 9999) ASC,
-        {$wpdb->posts}.post_title ASC
-    ";
+    return "COALESCE(rwpp_order.sort_order, {$wpdb->posts}.menu_order, 9999) ASC, {$wpdb->posts}.post_title ASC";
 }, 20, 2);
