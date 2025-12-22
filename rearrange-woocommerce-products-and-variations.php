@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Plugin Name: Rearrange WooCommerce Products and Variations
+ * Plugin Name: Rearrange Products for WooCommerce and Variations
  * Description: Sync global ordering between Rearrange WooCommerce Products v5.x and "Variations as Single Product"
  * Author:            An Ho
  * Author URI:        https://www.linkedin.com/in/andeptrai/
