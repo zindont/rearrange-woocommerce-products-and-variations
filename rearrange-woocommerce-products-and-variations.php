@@ -5,19 +5,27 @@
  * Description: Sync global ordering between Rearrange WooCommerce Products v5.x and "Variations as Single Product" (Free/Pro). Also shows disabled (private) variations in Rearrange admin list.
  * Author:            An Ho
  * Author URI:        https://www.linkedin.com/in/andeptrai/
- * Version: 1.0.2
+ * Version: 1.0.3
  */
 
-if ( ! defined('ABSPATH') ) {
+if (! defined('ABSPATH')) {
     exit;
 }
+
+/**
+ * -------------------------------------------------------------------
+ * CONFIG: Set to true to include private (disabled) variations in RWPP admin
+ * -------------------------------------------------------------------
+ */
+define('RWPPV_SHOW_PRIVATE_VARIATIONS', false);
 
 /**
  * Helper: Identify RWPP v5 list query signature (page + ajax)
  * - post_type   = ['product']
  * - post_status is typically ['publish'] (we allow also 'private' so disabled variations can be listed)
  */
-function rwppv_is_rwpp_list_query(WP_Query $q): bool {
+function rwppv_is_rwpp_list_query(WP_Query $q): bool
+{
     $pt     = $q->get('post_type');
     $status = (array) $q->get('post_status');
 
@@ -35,7 +43,8 @@ function rwppv_is_rwpp_list_query(WP_Query $q): bool {
 /**
  * WVASP mode check
  */
-function rwppv_is_wvasp_legacy_mode(): bool {
+function rwppv_is_wvasp_legacy_mode(): bool
+{
     return get_option('wvasp_legacy_product_exclude', 'no') === 'yes';
 }
 
@@ -43,7 +52,8 @@ function rwppv_is_wvasp_legacy_mode(): bool {
  * Non-legacy WVASP exclusion:
  * Exclude posts where _wvasp_exclude = 'yes'
  */
-function rwppv_apply_wvasp_exclude_meta_rule(WP_Query $q): void {
+function rwppv_apply_wvasp_exclude_meta_rule(WP_Query $q): void
+{
     $meta_query = (array) $q->get('meta_query', []);
 
     $meta_query[] = [
@@ -66,7 +76,8 @@ function rwppv_apply_wvasp_exclude_meta_rule(WP_Query $q): void {
  * Legacy WVASP exclusion:
  * Build exclude IDs similar to Pro's legacy logic (best-effort).
  */
-function rwppv_get_wvasp_legacy_exclude_ids(): array {
+function rwppv_get_wvasp_legacy_exclude_ids(): array
+{
     global $wpdb;
 
     $exclude_ids = [];
@@ -191,7 +202,8 @@ function rwppv_get_wvasp_legacy_exclude_ids(): array {
 /**
  * Apply WVASP exclusion rules to a query (admin RWPP list + RWPP ajax load more)
  */
-function rwppv_apply_wvasp_exclusions(WP_Query $q): void {
+function rwppv_apply_wvasp_exclusions(WP_Query $q): void
+{
     if (rwppv_is_wvasp_legacy_mode()) {
         $exclude_ids = rwppv_get_wvasp_legacy_exclude_ids();
         if (!empty($exclude_ids)) {
@@ -210,27 +222,28 @@ function rwppv_apply_wvasp_exclusions(WP_Query $q): void {
  */
 add_action('pre_get_posts', function (WP_Query $q) {
 
-    if ( ! is_admin() ) {
+    if (! is_admin()) {
         return;
     }
 
-    if ( empty($_GET['page']) || $_GET['page'] !== 'rwpp-page' ) {
+    if (empty($_GET['page']) || $_GET['page'] !== 'rwpp-page') {
         return;
     }
 
-    if ( ! rwppv_is_rwpp_list_query($q) ) {
+    if (! rwppv_is_rwpp_list_query($q)) {
         return;
     }
 
     // Show disabled variations too (Woo stores disabled variation as private)
-    $q->set('post_status', ['publish', 'private']);
+    if (RWPPV_SHOW_PRIVATE_VARIATIONS) {
+        $q->set('post_status', ['publish', 'private']);
+    }
 
     // Include variations
     $q->set('post_type', ['product', 'product_variation']);
 
     // Apply WVASP exclusions (supports Pro + legacy)
     rwppv_apply_wvasp_exclusions($q);
-
 }, 20);
 
 /**
@@ -240,27 +253,28 @@ add_action('pre_get_posts', function (WP_Query $q) {
  */
 add_action('pre_get_posts', function (WP_Query $q) {
 
-    if ( ! (defined('DOING_AJAX') && DOING_AJAX) ) {
+    if (! (defined('DOING_AJAX') && DOING_AJAX)) {
         return;
     }
 
-    if ( empty($_REQUEST['action']) || $_REQUEST['action'] !== 'load_more_products' ) {
+    if (empty($_REQUEST['action']) || $_REQUEST['action'] !== 'load_more_products') {
         return;
     }
 
-    if ( ! rwppv_is_rwpp_list_query($q) ) {
+    if (! rwppv_is_rwpp_list_query($q)) {
         return;
     }
 
     // Show disabled variations too
-    $q->set('post_status', ['publish', 'private']);
+    if (RWPPV_SHOW_PRIVATE_VARIATIONS) {
+        $q->set('post_status', ['publish', 'private']);
+    }
 
     // Include variations
     $q->set('post_type', ['product', 'product_variation']);
 
     // Apply WVASP exclusions (supports Pro + legacy)
     rwppv_apply_wvasp_exclusions($q);
-
 }, 20);
 
 /**
@@ -270,7 +284,8 @@ add_action('pre_get_posts', function (WP_Query $q) {
  * Global order only (category_id = 0).
  * ------------------------------------------------------------------
  */
-function rwppv_is_main_shop_query(WP_Query $q): bool {
+function rwppv_is_main_shop_query(WP_Query $q): bool
+{
     if (is_admin()) return false;
     if (!$q->is_main_query()) return false;
     if (!function_exists('is_shop') || !is_shop()) return false;
@@ -288,31 +303,29 @@ function rwppv_is_main_shop_query(WP_Query $q): bool {
 
 add_filter('posts_join', function ($join, WP_Query $q) {
 
-    if ( ! rwppv_is_main_shop_query($q) ) {
+    if (! rwppv_is_main_shop_query($q)) {
         return $join;
     }
 
     global $wpdb;
     $table = $wpdb->prefix . 'rwpp_product_order';
 
-    if ( strpos($join, $table) === false ) {
+    if (strpos($join, $table) === false) {
         $join .= " LEFT JOIN {$table} AS rwpp_order
                    ON {$wpdb->posts}.ID = rwpp_order.product_id
                    AND rwpp_order.category_id = 0";
     }
 
     return $join;
-
 }, 20, 2);
 
 add_filter('posts_orderby', function ($orderby, WP_Query $q) {
 
-    if ( ! rwppv_is_main_shop_query($q) ) {
+    if (! rwppv_is_main_shop_query($q)) {
         return $orderby;
     }
 
     global $wpdb;
 
     return "COALESCE(rwpp_order.sort_order, {$wpdb->posts}.menu_order, 9999) ASC, {$wpdb->posts}.post_title ASC";
-
 }, 20, 2);
