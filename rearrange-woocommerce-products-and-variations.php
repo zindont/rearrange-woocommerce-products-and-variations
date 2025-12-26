@@ -5,7 +5,7 @@
  * Description: Sync global ordering between Rearrange WooCommerce Products v5.x and "Variations as Single Product" (Free/Pro)
  * Author:            An Ho
  * Author URI:        https://www.linkedin.com/in/andeptrai/
- * Version: 1.0.4
+ * Version: 1.0.5
  */
 
 if ( ! defined('ABSPATH') ) {
@@ -217,6 +217,37 @@ add_action('pre_get_posts', function (WP_Query $q) {
     }
 
     if ( empty($_GET['page']) || $_GET['page'] !== 'rwpp-page' ) {
+        return;
+    }
+
+    if ( ! rwppv_is_rwpp_list_query($q) ) {
+        return;
+    }
+
+    // Include variations
+    $q->set('post_type', ['product', 'product_variation']);
+
+    // Apply WVASP exclusions (supports Pro + legacy)
+    rwppv_apply_wvasp_exclusions($q);
+
+}, 20);
+
+/**
+ * ------------------------------------------------------------------
+ * 1b) ADMIN: RWPP "Sort by Categories" page – include product_variation
+ * ------------------------------------------------------------------
+ */
+add_action('pre_get_posts', function (WP_Query $q) {
+
+    if ( ! is_admin() ) {
+        return;
+    }
+
+    if ( empty($_GET['page']) || $_GET['page'] !== 'rwpp-sortby-categories-page' ) {
+        return;
+    }
+
+    if ( empty($_GET['term_id']) ) {
         return;
     }
 
