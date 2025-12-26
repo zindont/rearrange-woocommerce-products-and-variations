@@ -2,49 +2,44 @@
 
 /**
  * Plugin Name: Rearrange Products for WooCommerce and Variations
- * Description: Sync global ordering between Rearrange WooCommerce Products v5.x and "Variations as Single Product" (Free/Pro). Also shows disabled (private) variations in Rearrange admin list.
+ * Description: Sync global ordering between Rearrange WooCommerce Products v5.x and "Variations as Single Product" (Free/Pro)
  * Author:            An Ho
  * Author URI:        https://www.linkedin.com/in/andeptrai/
- * Version: 1.0.3
+ * Version: 1.0.4
  */
 
-if (! defined('ABSPATH')) {
+if ( ! defined('ABSPATH') ) {
     exit;
 }
 
 /**
  * -------------------------------------------------------------------
- * CONFIG: Set to true to include private (disabled) variations in RWPP admin
+ * CONFIG
  * -------------------------------------------------------------------
+ * If your WVASP (Variations as Single Product) plugin makes private (disabled) variations appear on frontend,
+ * enable this to force-hide any non-publish items for visitors (and for users who cannot read private products).
  */
-define('RWPPV_SHOW_PRIVATE_VARIATIONS', false);
+if ( ! defined('RWPPV_FRONTEND_HIDE_PRIVATE') ) {
+    define('RWPPV_FRONTEND_HIDE_PRIVATE', true);
+}
 
 /**
  * Helper: Identify RWPP v5 list query signature (page + ajax)
  * - post_type   = ['product']
- * - post_status is typically ['publish'] (we allow also 'private' so disabled variations can be listed)
+ * - post_status = ['publish']
  */
-function rwppv_is_rwpp_list_query(WP_Query $q): bool
-{
+function rwppv_is_rwpp_list_query(WP_Query $q): bool {
     $pt     = $q->get('post_type');
-    $status = (array) $q->get('post_status');
+    $status = $q->get('post_status');
 
-    $is_product_list = is_array($pt) && $pt === ['product'];
-
-    // Allow only publish/private (RWPP uses publish by default; we extend to private)
-    $allowed_statuses = ['publish', 'private'];
-    $is_allowed_status =
-        !empty($status) &&
-        count(array_diff($status, $allowed_statuses)) === 0;
-
-    return $is_product_list && $is_allowed_status;
+    return is_array($pt) && $pt === ['product']
+        && is_array($status) && $status === ['publish'];
 }
 
 /**
  * WVASP mode check
  */
-function rwppv_is_wvasp_legacy_mode(): bool
-{
+function rwppv_is_wvasp_legacy_mode(): bool {
     return get_option('wvasp_legacy_product_exclude', 'no') === 'yes';
 }
 
@@ -52,8 +47,7 @@ function rwppv_is_wvasp_legacy_mode(): bool
  * Non-legacy WVASP exclusion:
  * Exclude posts where _wvasp_exclude = 'yes'
  */
-function rwppv_apply_wvasp_exclude_meta_rule(WP_Query $q): void
-{
+function rwppv_apply_wvasp_exclude_meta_rule(WP_Query $q): void {
     $meta_query = (array) $q->get('meta_query', []);
 
     $meta_query[] = [
@@ -73,11 +67,9 @@ function rwppv_apply_wvasp_exclude_meta_rule(WP_Query $q): void
 }
 
 /**
- * Legacy WVASP exclusion:
- * Build exclude IDs similar to Pro's legacy logic (best-effort).
+ * Legacy WVASP exclusion (best-effort).
  */
-function rwppv_get_wvasp_legacy_exclude_ids(): array
-{
+function rwppv_get_wvasp_legacy_exclude_ids(): array {
     global $wpdb;
 
     $exclude_ids = [];
@@ -133,7 +125,6 @@ function rwppv_get_wvasp_legacy_exclude_ids(): array
         if (!empty($children)) {
             $exclude_ids = array_merge($exclude_ids, $children);
         }
-        // Pro does NOT exclude those parents themselves.
     }
 
     // 3b) Variations with _wvasp_single_exclude_variation = yes
@@ -202,8 +193,7 @@ function rwppv_get_wvasp_legacy_exclude_ids(): array
 /**
  * Apply WVASP exclusion rules to a query (admin RWPP list + RWPP ajax load more)
  */
-function rwppv_apply_wvasp_exclusions(WP_Query $q): void
-{
+function rwppv_apply_wvasp_exclusions(WP_Query $q): void {
     if (rwppv_is_wvasp_legacy_mode()) {
         $exclude_ids = rwppv_get_wvasp_legacy_exclude_ids();
         if (!empty($exclude_ids)) {
@@ -217,26 +207,21 @@ function rwppv_apply_wvasp_exclusions(WP_Query $q): void
 
 /**
  * ------------------------------------------------------------------
- * 1) ADMIN: RWPP page – include product_variation + private status
+ * 1) ADMIN: RWPP page – include product_variation in main list query
  * ------------------------------------------------------------------
  */
 add_action('pre_get_posts', function (WP_Query $q) {
 
-    if (! is_admin()) {
+    if ( ! is_admin() ) {
         return;
     }
 
-    if (empty($_GET['page']) || $_GET['page'] !== 'rwpp-page') {
+    if ( empty($_GET['page']) || $_GET['page'] !== 'rwpp-page' ) {
         return;
     }
 
-    if (! rwppv_is_rwpp_list_query($q)) {
+    if ( ! rwppv_is_rwpp_list_query($q) ) {
         return;
-    }
-
-    // Show disabled variations too (Woo stores disabled variation as private)
-    if (RWPPV_SHOW_PRIVATE_VARIATIONS) {
-        $q->set('post_status', ['publish', 'private']);
     }
 
     // Include variations
@@ -244,30 +229,26 @@ add_action('pre_get_posts', function (WP_Query $q) {
 
     // Apply WVASP exclusions (supports Pro + legacy)
     rwppv_apply_wvasp_exclusions($q);
+
 }, 20);
 
 /**
  * ------------------------------------------------------------------
- * 2) ADMIN AJAX: RWPP "Load more products" – include variations + private status
+ * 2) ADMIN AJAX: RWPP "Load more products" – include variations too
  * ------------------------------------------------------------------
  */
 add_action('pre_get_posts', function (WP_Query $q) {
 
-    if (! (defined('DOING_AJAX') && DOING_AJAX)) {
+    if ( ! (defined('DOING_AJAX') && DOING_AJAX) ) {
         return;
     }
 
-    if (empty($_REQUEST['action']) || $_REQUEST['action'] !== 'load_more_products') {
+    if ( empty($_REQUEST['action']) || $_REQUEST['action'] !== 'load_more_products' ) {
         return;
     }
 
-    if (! rwppv_is_rwpp_list_query($q)) {
+    if ( ! rwppv_is_rwpp_list_query($q) ) {
         return;
-    }
-
-    // Show disabled variations too
-    if (RWPPV_SHOW_PRIVATE_VARIATIONS) {
-        $q->set('post_status', ['publish', 'private']);
     }
 
     // Include variations
@@ -275,20 +256,33 @@ add_action('pre_get_posts', function (WP_Query $q) {
 
     // Apply WVASP exclusions (supports Pro + legacy)
     rwppv_apply_wvasp_exclusions($q);
+
 }, 20);
 
 /**
  * ------------------------------------------------------------------
- * FRONTEND (ADMIN vs CUSTOMER consistency):
- * Force RWPP global ordering on the MAIN SHOP QUERY for everyone.
- * Global order only (category_id = 0).
+ * FRONTEND (FIX ADMIN vs CUSTOMER):
+ * Apply RWPP global ordering to the MAIN SHOP QUERY for everyone.
+ *
+ * Why:
+ * - Admin may bypass cache and/or WVASP may alter post_type differently per role.
+ * - Restricting to "query includes product_variation" can cause guest to miss ordering.
+ *
+ * Scope:
+ * - Only main query
+ * - Only is_shop()
+ * - Global order only (category_id = 0)
  * ------------------------------------------------------------------
  */
-function rwppv_is_main_shop_query(WP_Query $q): bool
+function rwppv_is_main_catalog_query(WP_Query $q): bool
 {
     if (is_admin()) return false;
     if (!$q->is_main_query()) return false;
-    if (!function_exists('is_shop') || !is_shop()) return false;
+
+    $is_shop = function_exists('is_shop') && is_shop();
+    $is_cat  = function_exists('is_product_category') && is_product_category();
+
+    if (!$is_shop && !$is_cat) return false;
 
     // Ensure it's a product catalog query
     $pt = $q->get('post_type');
@@ -301,19 +295,66 @@ function rwppv_is_main_shop_query(WP_Query $q): bool
     return empty($pt);
 }
 
+function rwppv_get_rwpp_category_id_for_request(): int
+{
+    if (function_exists('is_product_category') && is_product_category()) {
+        return (int) get_queried_object_id();
+    }
+    return 0;
+}
+
+/**
+ * FRONTEND: Ensure private (disabled) items never leak to visitors.
+ * Some "variations as single products" implementations may broaden post_status for logged-in users.
+ */
+add_action('pre_get_posts', function (WP_Query $q) {
+
+    if (is_admin()) {
+        return;
+    }
+
+    if (!RWPPV_FRONTEND_HIDE_PRIVATE) {
+        return;
+    }
+
+    // Only affect main catalog queries (shop + product category)
+    if (!rwppv_is_main_catalog_query($q)) {
+        return;
+    }
+
+    // Force-hide any non-publish items for EVERYONE (including admins) on frontend.
+    // This prevents WVASP from leaking disabled/private variations on catalog pages.
+    $q->set('post_status', ['publish']);
+
+}, 15);
 add_filter('posts_join', function ($join, WP_Query $q) {
 
-    if (! rwppv_is_main_shop_query($q)) {
+    if (! rwppv_is_main_catalog_query($q)) {
         return $join;
     }
 
     global $wpdb;
     $table = $wpdb->prefix . 'rwpp_product_order';
 
-    if (strpos($join, $table) === false) {
-        $join .= " LEFT JOIN {$table} AS rwpp_order
-                   ON {$wpdb->posts}.ID = rwpp_order.product_id
-                   AND rwpp_order.category_id = 0";
+    $category_id = rwppv_get_rwpp_category_id_for_request();
+
+    // Join category-specific order
+    if (strpos($join, " {$table} AS rwpp_order") === false) {
+        $join .= $wpdb->prepare(
+            " LEFT JOIN {$table} AS rwpp_order
+              ON {$wpdb->posts}.ID = rwpp_order.product_id
+              AND rwpp_order.category_id = %d",
+            $category_id
+        );
+    }
+
+    // On category pages, also join global order as fallback
+    if (function_exists('is_product_category') && is_product_category()) {
+        if (strpos($join, " {$table} AS rwpp_order_global") === false) {
+            $join .= " LEFT JOIN {$table} AS rwpp_order_global
+                       ON {$wpdb->posts}.ID = rwpp_order_global.product_id
+                       AND rwpp_order_global.category_id = 0";
+        }
     }
 
     return $join;
@@ -321,11 +362,17 @@ add_filter('posts_join', function ($join, WP_Query $q) {
 
 add_filter('posts_orderby', function ($orderby, WP_Query $q) {
 
-    if (! rwppv_is_main_shop_query($q)) {
+    if (! rwppv_is_main_catalog_query($q)) {
         return $orderby;
     }
 
     global $wpdb;
 
+    // Category page: prefer category order, fallback to global, then menu_order
+    if (function_exists('is_product_category') && is_product_category()) {
+        return "COALESCE(rwpp_order.sort_order, rwpp_order_global.sort_order, {$wpdb->posts}.menu_order, 9999) ASC, {$wpdb->posts}.post_title ASC";
+    }
+
+    // Shop: global order
     return "COALESCE(rwpp_order.sort_order, {$wpdb->posts}.menu_order, 9999) ASC, {$wpdb->posts}.post_title ASC";
 }, 20, 2);
