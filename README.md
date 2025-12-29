@@ -17,10 +17,10 @@ This plugin extends the functionality of **Rearrange WooCommerce Products** (RWP
 
 ### Key Features
 
-* **Admin Integration**: Automatically includes product variations in the RWPP admin ordering interface
-* **Exclude Rule Sync**: Respects the `_wvasp_exclude` meta key to exclude specific variations from ordering
-* **Frontend Ordering**: Applies RWPP global ordering to product variations on the shop pages
-* **Seamless Integration**: Works transparently with existing WooCommerce shop queries
+- **Admin Integration**: Automatically includes product variations in the RWPP admin ordering interface
+- **Exclude Rule Sync**: Respects the `_wvasp_exclude` meta key to exclude specific variations from ordering
+- **Frontend Ordering**: Applies RWPP global ordering to product variations on the shop pages
+- **Seamless Integration**: Works transparently with existing WooCommerce shop queries
 
 ### How It Works
 
@@ -32,9 +32,9 @@ This plugin extends the functionality of **Rearrange WooCommerce Products** (RWP
 
 The plugin hooks into three key WordPress filters:
 
-* `pre_get_posts` - Modifies admin queries to include variations
-* `posts_join` - Joins RWPP ordering table on frontend queries
-* `posts_orderby` - Applies RWPP ordering to frontend product lists
+- `pre_get_posts` - Modifies admin queries to include variations
+- `posts_join` - Joins RWPP ordering table on frontend queries
+- `posts_orderby` - Applies RWPP ordering to frontend product lists
 
 ## Installation
 
@@ -44,10 +44,10 @@ The plugin hooks into three key WordPress filters:
 
 ## Requirements
 
-* WordPress 5.0 or higher
-* WooCommerce 3.0 or higher
-* **Rearrange WooCommerce Products** v5.x (by aslamdoctor)
-* **Variations as Single Product for WooCommerce** plugin (by StorePlugin)
+- WordPress 5.0 or higher
+- WooCommerce 3.0 or higher
+- **Rearrange WooCommerce Products** v5.x (by aslamdoctor)
+- **Variations as Single Product for WooCommerce** plugin (by StorePlugin)
 
 ## Frequently Asked Questions
 
@@ -70,21 +70,24 @@ Yes, the plugin respects the `_wvasp_exclude` meta key. Set it to 'yes' for vari
 ## Changelog
 
 ### 1.0.0
-* Initial release
-* Admin integration with RWPP ordering page
-* Frontend ordering support for variations
-* Exclude rule synchronization with WVASP
+
+- Initial release
+- Admin integration with RWPP ordering page
+- Frontend ordering support for variations
+- Exclude rule synchronization with WVASP
 
 ## Upgrade Notice
 
 ### 1.0.0
+
 Initial release. Install and enjoy synchronized ordering for product variations!
 
 ## Support
 
 For support, please contact:
-* **Author:** An Ho
-* **LinkedIn:** [https://www.linkedin.com/in/andeptrai/](https://www.linkedin.com/in/andeptrai/)
+
+- **Author:** An Ho
+- **LinkedIn:** [https://www.linkedin.com/in/andeptrai/](https://www.linkedin.com/in/andeptrai/)
 
 ## License
 
